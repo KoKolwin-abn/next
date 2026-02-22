@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure 6-Digit Code System</title>
+    <style>
+        body {
+            background-color: #6a1b9a;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            color: white;
+            text-align: center;
+        }
+        .container {
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+        input[type="text"] {
+            padding: 12px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            margin: 10px 0;
+            width: 80%;
+        }
+        button {
+            padding: 12px 25px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 85%;
+            margin: 5px 0;
+        }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #757575; cursor: not-allowed; }
+        #message { margin-top: 15px; font-size: 14px; min-height: 20px; }
+        .error { color: #ffffff; }
+        .success { color: #66ff66; }
+        .buy-button {
+            background-color: #ff5722; /* လိမ္မော်ရောင် */
+        }
+        .buy-button:hover {
+            background-color: #e64a19; /* လိမ္မော်ရောင် ပိုရင့် */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 Please insert your Code and Summit</h1>
+        <input type="text" id="secretCode" maxlength="6" placeholder="Please insert 6 code here" autofocus>
+        <button onclick="handleSubmit()">Summit</button>
+        <button class="buy-button" onclick="openBuyLink()">To Buy Code</button>
+        <p id="message"></p>
+    </div>
+
+    <script>
+        // Google Apps Script URL (သင့် Script URL နှင့် အစားထိုးပါ)
+        const scriptUrl = 'https://script.google.com/macros/s/AKfycbylCJKhVksdQ8Xpvy_rJdRSSakaW8Tzd45QqgjOIj9DeCmXIBXdyAF-QysBjL_BHSN3/exec';
+
+        // LocalStorage Key
+        const storageKey = 'secureCodeData';
+
+        // စာမျက်နှာစတင်ချိန်
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedData = getSecureData();
+            if (savedData && savedData.expires > Date.now()) {
+                // သက်တမ်းမကုန်သေးပါက Website သို့ တိုက်ရိုက်သွားပါ
+                window.location.href = savedData.url;
+            } else if (savedData && savedData.expires <= Date.now()) {
+                // သက်တမ်းကုန်သွားပါက LocalStorage မှ ဖျက်ပါ
+                localStorage.removeItem(storageKey);
+            }
+        });
+
+        // Google Sheets မှ ကုဒ်များကို ဖတ်ရန်
+        async function fetchCodes() {
+            try {
+                const response = await fetch(`${scriptUrl}?action=fetchCodes`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching codes:', error);
+                showError('ကုဒ်များကို ဖတ်ရန် မအောင်မြင်ပါ။');
+                return [];
+            }
+        }
+
+        // Code အသုံးပြုမှုကို Log ရန်
+        async function logCodeUsage(code) {
+            const deviceInfo = navigator.userAgent; // Device Info ရယူရန်
+            try {
+                const response = await fetch(`${scriptUrl}?action=logCode&code=${code}&deviceInfo=${encodeURIComponent(deviceInfo)}`);
+                const data = await response.json();
+                if (data.error) {
+                    console.error('Error logging code usage:', data.error);
+                }
+            } catch (error) {
+                console.error('Error logging code usage:', error);
+            }
+        }
+
+        // ကုဒ်စစ်ဆေးခြင်း
+        async function handleSubmit() {
+            const input = document.getElementById('secretCode');
+            const code = input.value.trim().toUpperCase();
+
+            if (code.length !== 6) {
+                showError('ကုဒ်သည် ၆ လုံးပြည့်ရမည်!');
+                return;
+            }
+
+            const codes = await fetchCodes();
+            const matchedCode = codes.find(c => c.code === code);
+
+            if (!matchedCode) {
+                showError('Code မှားယွင်းနေပါသည်။ သို့မဟုတ် အသုံးပြုထားပြီးသော Code ဖြစ်နေပါသည်။ Code အသစ်အားရိုက်ထည့်ပါ!');
+                return;
+            }
+
+            // Code အသုံးပြုမှုကို Log ရန်
+            await logCodeUsage(code);
+
+            // ဒေတာသိမ်းဆည်းခြင်း
+            saveSecureData(matchedCode);
+            window.location.href = matchedCode.url;
+        }
+
+        // ဒေတာသိမ်းဆည်းခြင်း
+        function saveSecureData(codeData) {
+            const expires = Date.now() + Number(codeData.duration);
+            const data = JSON.stringify({ code: codeData.code, expires, url: codeData.url });
+            localStorage.setItem(storageKey, btoa(data));
+        }
+
+        // ဒေတာရယူခြင်း
+        function getSecureData() {
+            try {
+                const data = localStorage.getItem(storageKey);
+                if (data) {
+                    return JSON.parse(atob(data));
+                }
+            } catch (error) {
+                console.error('Error reading secure data:', error);
+            }
+            return null;
+        }
+
+        // အမှားပြသခြင်း
+        function showError(text) {
+            const msg = document.getElementById('message');
+            msg.className = 'error';
+            msg.textContent = text;
+            setTimeout(() => msg.textContent = '', 9000);
+        }
+
+        // Enter Key အတွက်
+        document.getElementById('secretCode').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSubmit();
+        });
+
+        // Code ဝယ်ယူရန် လင့်ခ်ဖွင့်ရန်
+        async function openBuyLink() {
+            try {
+                const response = await fetch(`${scriptUrl}?action=getBuyLink`);
+                const data = await response.json();
+                if (data.buyLink) {
+                    window.open(data.buyLink, '_blank'); // လင့်ခ်ကို ဖွင့်ရန်
+                } else {
+                    showError(data.error || 'ဝယ်ယူရန် လင့်ခ်ကို ရှာမတွေ့ပါ။');
+                }
+            } catch (error) {
+                console.error('Error fetching buy link:', error);
+                showError('ဝယ်ယူရန် လင့်ခ်ကို ရယူရန် မအောင်မြင်ပါ။');
+            }
+        }
+    </script>
+</body>
+</html>
